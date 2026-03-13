@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="camera_background">#09131A</color>
+    <color name="panel_scrim">#C917222B</color>
+    <color name="panel_scrim_strong">#E31A232B</color>
+    <color name="panel_text_primary">#FFF3F6F8</color>
+    <color name="panel_text_secondary">#CFE0E6EC</color>
+    <color name="accent">#4FC3A1</color>
+    <color name="warning">#FFB454</color>
+    <color name="danger">#FF7A6B</color>
+    <color name="grid_line">#55FFFFFF</color>
+    <color name="subject_box_good">#66A9F3D1</color>
+    <color name="subject_box_warn">#66FFC06A</color>
+    <color name="capture_button">#FFF4F8FA</color>
+    <color name="capture_button_icon">#09131A</color>
+    <color name="control_button">#2D3942</color>
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+</resources>
+

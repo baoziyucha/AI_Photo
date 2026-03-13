@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AI 拍照辅助</string>
+    <string name="scene_unknown">等待识别</string>
+    <string name="scene_portrait">人像</string>
+    <string name="scene_selfie">自拍</string>
+    <string name="scene_pet_or_child">宠物 / 孩童</string>
+    <string name="scene_daily_generic">日常</string>
+    <string name="brightness_balanced">光线正常</string>
+    <string name="brightness_low_light">光线偏暗</string>
+    <string name="brightness_backlit">逆光</string>
+    <string name="brightness_overexposed">高亮</string>
+    <string name="latency_default">-- ms</string>
+    <string name="guidance_waiting">请把主体放进取景框，AI 会自动给出构图建议。</string>
+    <string name="detail_default">默认启用本地实时分析与基础自动调参。</string>
+    <string name="cloud_settings">云端点评设置</string>
+    <string name="review_header_default">尚未拍照</string>
+    <string name="review_empty">拍摄完成后，这里会显示本地取景总结。</string>
+    <string name="cloud_review_idle">点击“AI 点评”可按张上传照片做增强分析。</string>
+    <string name="cloud_review_button">AI 点评</string>
+    <string name="cloud_consent_disabled">云端点评未授权</string>
+    <string name="cloud_consent_enabled">云端点评已授权</string>
+    <string name="switch_camera">切换前后摄</string>
+    <string name="ai_assist_switch">AI 辅助</string>
+    <string name="ai_assist_hint">关闭后保留提示，不再自动调曝光和对焦。</string>
+    <string name="capture">拍照</string>
+    <string name="permission_title">需要相机权限</string>
+    <string name="permission_message">授予相机权限后，应用才能做实时构图分析、自动对焦和拍照保存。</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="cloud_endpoint_hint">点评服务地址，例如 https://example.com</string>
+    <string name="cloud_consent_switch">允许按张上传到云端点评</string>
+    <string name="cloud_consent_detail">照片默认只保存在本地。只有在你打开授权并点击“AI 点评”时，才会上传当前照片。</string>
+    <string name="settings_title">云端点评设置</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_cancel">取消</string>
+    <string name="reviewing">正在请求云端点评…</string>
+    <string name="cloud_endpoint_missing">请先配置点评服务地址并授权云端点评。</string>
+    <string name="photo_saved">照片已保存到系统相册。</string>
+    <string name="camera_not_ready">相机尚未就绪，请稍后再试。</string>
+    <string name="permission_denied">没有相机权限，无法开始预览。</string>
+    <string name="review_error_prefix">云端点评失败，已回退本地结果：</string>
+    <string name="review_success_prefix">云端点评：</string>
+    <string name="status_ai_off">AI 自动调参已关闭</string>
+    <string name="status_ai_on">AI 自动调参与提示已开启</string>
+</resources>
+
