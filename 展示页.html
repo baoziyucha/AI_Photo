@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 随身摄影师｜普通手机实时人像拍照助手</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #64748b;
+      --primary: #4f46e5;
+      --primary-2: #7c3aed;
+      --primary-soft: #eef2ff;
+      --green: #10b981;
+      --orange: #f59e0b;
+      --pink: #ec4899;
+      --border: #e5e7eb;
+      --shadow: 0 18px 48px rgba(15, 23, 42, .10);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(79,70,229,.18), transparent 28%),
+        radial-gradient(circle at 92% 12%, rgba(236,72,153,.13), transparent 30%),
+        linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
+      line-height: 1.75;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 36px 0 68px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 13px;
+      border-radius: 999px;
+      background: rgba(79,70,229,.10);
+      color: #3730a3;
+      font-weight: 700;
+      font-size: 14px;
+      border: 1px solid rgba(79,70,229,.16);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.08fr .92fr;
+      gap: 34px;
+      align-items: center;
+      padding: 42px 0 28px;
+    }
+
+    .hero h1 {
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 1.08;
+      margin: 18px 0 16px;
+      letter-spacing: -1.8px;
+    }
+
+    .hero p {
+      margin: 0 0 22px;
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 680px;
+    }
+
+    .highlight {
+      color: #111827;
+      font-weight: 800;
+    }
+
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .pill {
+      padding: 10px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      box-shadow: 0 8px 20px rgba(15,23,42,.05);
+      font-size: 14px;
+      color: #334155;
+      font-weight: 650;
+    }
+
+    .section {
+      margin-top: 30px;
+      padding: 32px;
+      background: rgba(255,255,255,.90);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 28px;
+      line-height: 1.25;
+      letter-spacing: -.4px;
+    }
+
+    .section .sub {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, .05);
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 19px;
+      line-height: 1.35;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 14px;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .icon.blue { background: linear-gradient(135deg, var(--primary), #38bdf8); }
+    .icon.green { background: linear-gradient(135deg, var(--green), #22c55e); }
+    .icon.orange { background: linear-gradient(135deg, var(--orange), #fb7185); }
+    .icon.pink { background: linear-gradient(135deg, var(--pink), var(--primary-2)); }
+
+    .product-panel {
+      display: grid;
+      grid-template-columns: .85fr 1.15fr;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .quote {
+      padding: 18px 20px;
+      background: var(--primary-soft);
+      border: 1px solid #c7d2fe;
+      border-radius: 20px;
+      color: #3730a3;
+      font-weight: 800;
+      margin-top: 18px;
+    }
+
+    .steps {
+      counter-reset: step;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+    }
+
+    .step {
+      position: relative;
+      padding: 18px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #fff;
+      min-height: 158px;
+    }
+
+    .step:before {
+      counter-increment: step;
+      content: counter(step);
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      color: #fff;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .step h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .mockups {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .mockup-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      padding: 18px;
+      box-shadow: 0 12px 35px rgba(15,23,42,.06);
+    }
+
+    .mockup-card h3 {
+      margin: 12px 0 6px;
+      font-size: 18px;
+    }
+
+    .mockup-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .phone {
+      width: 100%;
+      aspect-ratio: 9 / 16;
+      border-radius: 32px;
+      border: 10px solid #111827;
+      background: #0f172a;
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 15px 35px rgba(15,23,42,.18);
+    }
+
+    .phone svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .feature-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-top: 8px;
+    }
+
+    .feature {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .feature small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-weight: 500;
+      line-height: 1.6;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .comparison .bad {
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    .comparison .good {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 920px) {
+      .hero, .product-panel, .grid-2, .comparison { grid-template-columns: 1fr; }
+      .grid-3, .mockups { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .section { padding: 24px; }
+    }
+
+    @media (max-width: 520px) {
+      .page { width: min(100% - 20px, 1120px); padding-top: 20px; }
+      .hero { padding-top: 20px; }
+      .section { border-radius: 22px; padding: 20px; }
+      .feature-list { grid-template-columns: 1fr; }
+      .hero h1 { letter-spacing: -1px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="badge">TRAE AI 创造力大赛 · 创意展示页</div>
+        <h1>AI 随身摄影师</h1>
+        <p>
+          一个面向普通安卓手机用户的 <span class="highlight">实时人像拍照助手</span>。
+          它不帮你生成一张虚假的完美照片，而是在真实拍摄现场告诉你手机怎么移动、人物怎么站、光线怎么找、什么时候按快门。
+        </p>
+        <div class="cta-row">
+          <div class="pill">朋友互拍</div>
+          <div class="pill">情侣拍照</div>
+          <div class="pill">旅行打卡</div>
+          <div class="pill">小白拍照助手</div>
+        </div>
+      </div>
+
+      <div class="phone" aria-label="产品首页示意图">
+        <svg viewBox="0 0 360 640" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#a5b4fc"/>
+              <stop offset="55%" stop-color="#fbcfe8"/>
+              <stop offset="100%" stop-color="#fde68a"/>
+            </linearGradient>
+            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#111827" flood-opacity=".25"/>
+            </filter>
+          </defs>
+          <rect width="360" height="640" fill="url(#sky)"/>
+          <circle cx="292" cy="84" r="34" fill="#fde68a" opacity=".95"/>
+          <rect x="0" y="410" width="360" height="230" fill="#4ade80"/>
+          <path d="M0 400 C70 360, 116 380, 180 342 C246 302, 300 336, 360 294 L360 420 L0 420 Z" fill="#475569" opacity=".55"/>
+          <rect x="26" y="28" width="208" height="38" rx="19" fill="rgba(255,255,255,.82)"/>
+          <text x="44" y="53" font-size="18" fill="#111827" font-weight="700">AI 人像助手</text>
+
+          <line x1="120" y1="88" x2="120" y2="560" stroke="rgba(255,255,255,.55)" stroke-width="2"/>
+          <line x1="240" y1="88" x2="240" y2="560" stroke="rgba(255,255,255,.55)" stroke-width="2"/>
+          <line x1="32" y1="245" x2="328" y2="245" stroke="rgba(255,255,255,.55)" stroke-width="2"/>
+          <line x1="32" y1="405" x2="328" y2="405" stroke="rgba(255,255,255,.55)" stroke-width="2"/>
+
+          <ellipse cx="178" cy="405" rx="64" ry="18" fill="rgba(15,23,42,.22)"/>
+          <circle cx="178" cy="270" r="46" fill="#f8c8a7"/>
+          <path d="M132 272 C138 206, 218 204, 224 272 C200 246, 158 246, 132 272Z" fill="#312e81"/>
+          <rect x="138" y="316" width="80" height="116" rx="40" fill="#6366f1"/>
+          <rect x="86" y="334" width="74" height="24" rx="12" fill="#f8c8a7" transform="rotate(-18 123 346)"/>
+          <rect x="199" y="334" width="74" height="24" rx="12" fill="#f8c8a7" transform="rotate(18 236 346)"/>
+
+          <rect x="58" y="210" width="240" height="270" rx="24" fill="none" stroke="#ffffff" stroke-width="4" stroke-dasharray="10 8"/>
+          <path d="M58 345 L32 345 L58 320 Z" fill="#fff" filter="url(#shadow)"/>
+          <rect x="42" y="496" width="276" height="58" rx="20" fill="rgba(17,24,39,.78)"/>
+          <text x="66" y="531" font-size="19" fill="#ffffff" font-weight="800">手机向左移一点</text>
+          <circle cx="180" cy="596" r="24" fill="#fff"/>
+          <circle cx="180" cy="596" r="17" fill="none" stroke="#111827" stroke-width="3"/>
+        </svg>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>产品是什么？</h2>
+      <p class="sub">它不是专业相机，也不是 AI 生图工具，而是普通人拍人像时的实时“拍照教练”。</p>
+      <div class="product-panel">
+        <div>
+          <div class="quote">
+            核心卖点：不是 AI 生图，而是 AI 教你把真实照片拍好。
+          </div>
+          <p>
+            用户打开 App 后，AI 会实时分析取景画面，判断人物位置、构图、光线、角度和拍摄时机，并把复杂的摄影判断转换成一句简单指令：
+            “向左移一点”“脸转向光源”“手机下压一点”“现在可以拍”。
+          </p>
+        </div>
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="icon blue">人</div>
+            <h3>聚焦人像</h3>
+            <p>第一版只做人像场景，主要服务朋友互拍、情侣拍照、旅行打卡。</p>
+          </div>
+          <div class="card">
+            <div class="icon green">导</div>
+            <h3>实时指导</h3>
+            <p>在按快门前给出具体动作建议，减少反复重拍和废片。</p>
+          </div>
+          <div class="card">
+            <div class="icon orange">评</div>
+            <h3>拍后评分</h3>
+            <p>拍完后判断是否推荐保存、是否需要重拍或轻量优化。</p>
+          </div>
+          <div class="card">
+            <div class="icon pink">学</div>
+            <h3>偏好学习</h3>
+            <p>根据用户保存、重拍和采纳建议的行为，逐步学习用户审美。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>图片示例：它会怎么指导你拍？</h2>
+      <p class="sub">以下为产品界面示意图，用来展示核心使用方式，不代表最终 UI。</p>
+
+      <div class="mockups">
+        <div class="mockup-card">
+          <div class="phone">
+            <svg viewBox="0 0 360 640" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#93c5fd"/>
+                  <stop offset="70%" stop-color="#dbeafe"/>
+                  <stop offset="100%" stop-color="#bbf7d0"/>
+                </linearGradient>
+              </defs>
+              <rect width="360" height="640" fill="url(#bg1)"/>
+              <rect x="0" y="390" width="360" height="250" fill="#86efac"/>
+              <rect x="238" y="184" width="70" height="210" rx="8" fill="#94a3b8"/>
+              <rect x="247" y="204" width="18" height="18" fill="#e0f2fe"/>
+              <rect x="276" y="204" width="18" height="18" fill="#e0f2fe"/>
+              <rect x="247" y="238" width="18" height="18" fill="#e0f2fe"/>
+              <rect x="276" y="238" width="18" height="18" fill="#e0f2fe"/>
+              <line x1="120" y1="86" x2="120" y2="555" stroke="rgba(255,255,255,.72)" stroke-width="2"/>
+              <line x1="240" y1="86" x2="240" y2="555" stroke="rgba(255,255,255,.72)" stroke-width="2"/>
+              <line x1="32" y1="235" x2="328" y2="235" stroke="rgba(255,255,255,.72)" stroke-width="2"/>
+              <line x1="32" y1="395" x2="328" y2="395" stroke="rgba(255,255,255,.72)" stroke-width="2"/>
+              <circle cx="237" cy="275" r="38" fill="#f8c8a7"/>
+              <path d="M201 277 C206 222, 267 220, 273 277 C255 255, 219 253, 201 277Z" fill="#0f172a"/>
+              <rect x="202" y="315" width="70" height="105" rx="35" fill="#f97316"/>
+              <rect x="190" y="225" width="96" height="208" rx="22" fill="none" stroke="#fff" stroke-width="4" stroke-dasharray="10 8"/>
+              <path d="M124 325 L76 325" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+              <path d="M76 325 L102 303 M76 325 L102 347" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+              <rect x="32" y="495" width="296" height="58" rx="20" fill="rgba(17,24,39,.80)"/>
+              <text x="55" y="531" font-size="18" fill="#fff" font-weight="800">人物太靠右，手机向左移</text>
+              <circle cx="180" cy="594" r="24" fill="#fff"/>
+            </svg>
+          </div>
+          <h3>示例 1：构图提示</h3>
+          <p>AI 发现人物太靠右，直接提示拍摄者“手机向左移一点”，让人物落在更舒服的位置。</p>
+        </div>
+
+        <div class="mockup-card">
+          <div class="phone">
+            <svg viewBox="0 0 360 640" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#1e293b"/>
+                  <stop offset="55%" stop-color="#475569"/>
+                  <stop offset="100%" stop-color="#cbd5e1"/>
+                </linearGradient>
+                <radialGradient id="light" cx="82%" cy="18%" r="36%">
+                  <stop offset="0%" stop-color="#fde68a" stop-opacity=".95"/>
+                  <stop offset="100%" stop-color="#fde68a" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <rect width="360" height="640" fill="url(#bg2)"/>
+              <rect width="360" height="640" fill="url(#light)"/>
+              <rect x="0" y="430" width="360" height="210" fill="#334155"/>
+              <circle cx="176" cy="282" r="46" fill="#d69b76"/>
+              <path d="M130 284 C135 218, 216 216, 224 284 C200 260, 158 260, 130 284Z" fill="#111827"/>
+              <rect x="136" y="324" width="84" height="112" rx="42" fill="#8b5cf6"/>
+              <circle cx="166" cy="284" r="5" fill="#111827"/>
+              <circle cx="193" cy="284" r="5" fill="#111827"/>
+              <rect x="112" y="220" width="136" height="230" rx="28" fill="none" stroke="#fff" stroke-width="4" stroke-dasharray="10 8"/>
+              <path d="M260 178 C286 198 302 222 308 256" fill="none" stroke="#fde68a" stroke-width="10" stroke-linecap="round"/>
+              <path d="M308 256 L284 234 M308 256 L315 225" stroke="#fde68a" stroke-width="10" stroke-linecap="round"/>
+              <rect x="33" y="494" width="294" height="64" rx="20" fill="rgba(17,24,39,.82)"/>
+              <text x="54" y="521" font-size="17" fill="#fff" font-weight="800">脸部偏暗</text>
+              <text x="54" y="546" font-size="17" fill="#fff" font-weight="800">让人物转向光源</text>
+              <circle cx="180" cy="594" r="24" fill="#fff"/>
+            </svg>
+          </div>
+          <h3>示例 2：光线提示</h3>
+          <p>AI 判断脸部偏暗或逆光，提示人物转向光源，避免拍出“脸黑背景亮”的照片。</p>
+        </div>
+
+        <div class="mockup-card">
+          <div class="phone">
+            <svg viewBox="0 0 360 640" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="bg3" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#fbcfe8"/>
+                  <stop offset="60%" stop-color="#ddd6fe"/>
+                  <stop offset="100%" stop-color="#bfdbfe"/>
+                </linearGradient>
+              </defs>
+              <rect width="360" height="640" fill="url(#bg3)"/>
+              <rect x="46" y="70" width="268" height="368" rx="28" fill="rgba(255,255,255,.88)"/>
+              <rect x="68" y="92" width="224" height="252" rx="24" fill="#c4b5fd"/>
+              <circle cx="180" cy="190" r="42" fill="#f8c8a7"/>
+              <path d="M139 192 C144 132, 216 130, 222 192 C200 170, 160 170, 139 192Z" fill="#312e81"/>
+              <rect x="140" y="231" width="80" height="96" rx="40" fill="#ec4899"/>
+              <rect x="84" y="360" width="192" height="34" rx="17" fill="#dcfce7"/>
+              <text x="106" y="383" font-size="18" fill="#166534" font-weight="900">推荐保存  92 分</text>
+              <rect x="84" y="406" width="192" height="54" rx="18" fill="#eef2ff"/>
+              <text x="106" y="429" font-size="15" fill="#3730a3" font-weight="800">构图和光线不错</text>
+              <text x="106" y="451" font-size="15" fill="#3730a3" font-weight="800">可轻微提亮肤色</text>
+              <rect x="40" y="496" width="280" height="58" rx="20" fill="#111827"/>
+              <text x="88" y="531" font-size="18" fill="#fff" font-weight="800">保存 / 优化 / 重拍</text>
+              <circle cx="180" cy="594" r="24" fill="#fff"/>
+            </svg>
+          </div>
+          <h3>示例 3：拍后评分</h3>
+          <p>拍完后 AI 给出评分和建议，帮助用户判断这张是否值得保存、是否需要重拍或轻量优化。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>大概怎么用？</h2>
+      <p class="sub">用户不需要懂摄影术语，只需要按照 App 的短提示操作。</p>
+      <div class="steps">
+        <div class="step">
+          <h3>打开人像助手</h3>
+          <p>选择朋友互拍、情侣拍照或旅行打卡场景，进入实时取景界面。</p>
+        </div>
+        <div class="step">
+          <h3>AI 分析画面</h3>
+          <p>识别人脸、人体位置、画面留白、光线、水平线和背景干扰。</p>
+        </div>
+        <div class="step">
+          <h3>按提示调整</h3>
+          <p>根据箭头、文字或语音提示移动手机，或提醒人物调整站位。</p>
+        </div>
+        <div class="step">
+          <h3>提示可以拍</h3>
+          <p>当构图和光线较好时，App 提示“现在不错，可以拍”。</p>
+        </div>
+        <div class="step">
+          <h3>拍后评分优化</h3>
+          <p>拍完后给出保存、重拍或轻量后期建议，提高满意照片比例。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>第一版 MVP 做什么？</h2>
+      <p class="sub">第一版只做人像，不和原厂相机拼底层画质，而是专注“实时指导”。</p>
+      <div class="feature-list">
+        <div class="feature">实时人脸 / 人体识别<small>判断人物是否在画面中、是否被裁切、是否太远或太近。</small></div>
+        <div class="feature">构图动作提示<small>把构图判断转成“向左移一点”“手机下压一点”等可执行动作。</small></div>
+        <div class="feature">光线与逆光提醒<small>判断脸部是否偏暗，提示转向光源或调整拍摄角度。</small></div>
+        <div class="feature">水平与角度提醒<small>识别手机歪斜、拍摄角度不自然等常见废片原因。</small></div>
+        <div class="feature">拍摄时机判断<small>当主体、构图和光线较好时，提示用户现在可以拍。</small></div>
+        <div class="feature">拍后评分与重拍建议<small>判断照片是否推荐保存，或给出明确重拍原因。</small></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>为什么它有价值？</h2>
+      <div class="comparison">
+        <div class="card bad">
+          <h3>没有它时</h3>
+          <p>用户反复拍很多张，才发现脸太暗、人物太小、背景杂乱、角度不好。问题在拍照前就存在，但用户不知道怎么改。</p>
+        </div>
+        <div class="card good">
+          <h3>有它之后</h3>
+          <p>AI 在拍摄中实时提醒用户移动手机、调整人物和光线，并在拍后给出评分，帮助用户用更少次数得到满意照片。</p>
+        </div>
+      </div>
+      <div class="quote">
+        成功指标：同一场景下，用户用更少的拍摄次数，得到更满意、愿意保存或分享的人像照片。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>后续可以升级什么？</h2>
+      <div class="grid grid-3">
+        <div class="card">
+          <h3>自拍姿势指导</h3>
+          <p>提示用户下巴、肩膀、脸部朝向和手机高度，减少尴尬自拍。</p>
+        </div>
+        <div class="card">
+          <h3>风格模板</h3>
+          <p>增加旅行感、清透感、街拍感、情侣感等人像风格。</p>
+        </div>
+        <div class="card">
+          <h3>专业摄影师模式</h3>
+          <p>进一步提供焦段、景深、光线方向、色彩和后期建议。</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">
+      AI 随身摄影师｜普通手机实时人像拍照助手｜TRAE AI 创造力大赛创意展示
+    </div>
+  </main>
+</body>
+</html>
