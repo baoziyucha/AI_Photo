@@ -9,3 +9,15 @@ captures/
 *.jks
 /.kotlin/
 
+# Trae IDE 配置
+.trae/
+
+# 中转服务(Python)
+server/.env
+server/venv/
+server/resp.json
+server/resp_g.json
+server/test.jpg
+__pycache__/
+*.pyc
+
