@@ -18,8 +18,11 @@ import com.yuxiang.aiphoto.camera.AiCameraManager
 import com.yuxiang.aiphoto.databinding.ActivityMainBinding
 import com.yuxiang.aiphoto.databinding.DialogCloudSettingsBinding
 import com.yuxiang.aiphoto.model.BrightnessState
+import com.yuxiang.aiphoto.model.CaptureReadiness
 import com.yuxiang.aiphoto.model.ReviewUiState
 import com.yuxiang.aiphoto.model.SceneType
+import com.yuxiang.aiphoto.model.StylePreset
+import com.yuxiang.aiphoto.ui.BurstUiState
 import com.yuxiang.aiphoto.ui.CameraScreenState
 import com.yuxiang.aiphoto.ui.MainViewModel
 import kotlinx.coroutines.launch
@@ -29,6 +32,7 @@ class MainActivity : AppCompatActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     private var cameraManager: AiCameraManager? = null
+    private var lastReadiness: CaptureReadiness = CaptureReadiness.NOT_READY
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -68,6 +72,11 @@ class MainActivity : AppCompatActivity() {
             cameraManager?.capturePhoto(viewModel::onPhotoCaptured)
                 ?: toast(getString(R.string.camera_not_ready))
         }
+        // P2-4 长按快门触发连拍选片（默认 5 张，间隔 250ms）
+        binding.captureButton.setOnLongClickListener {
+            triggerBurst()
+            true
+        }
         binding.aiAssistSwitch.setOnCheckedChangeListener { _, isChecked ->
             viewModel.setAiAssistEnabled(isChecked)
             cameraManager?.setAiAssistEnabled(isChecked)
@@ -79,8 +88,17 @@ class MainActivity : AppCompatActivity() {
         binding.settingsButton.setOnClickListener {
             showCloudSettingsDialog()
         }
+        binding.settingsButton.setOnLongClickListener {
+            showStyleSelectorDialog()
+            true
+        }
         binding.cloudReviewButton.setOnClickListener {
             viewModel.requestCloudReview()
+        }
+        binding.cloudReviewButton.setOnLongClickListener {
+            viewModel.startVoiceDirector()
+            toast("已启动语音导演")
+            true
         }
     }
 
@@ -97,9 +115,11 @@ class MainActivity : AppCompatActivity() {
     private fun render(state: CameraScreenState) {
         binding.permissionCard.isVisible = !state.hasPermission
         binding.controlBar.alpha = if (state.hasPermission) 1f else 0.35f
-        binding.captureButton.isEnabled = state.hasPermission
-        binding.switchCameraButton.isEnabled = state.hasPermission
-        binding.aiAssistSwitch.isEnabled = state.hasPermission
+        // 连拍期间禁用快门，防止并发触发 takePicture
+        val isBursting = state.burstState is BurstUiState.Capturing
+        binding.captureButton.isEnabled = state.hasPermission && !isBursting
+        binding.switchCameraButton.isEnabled = state.hasPermission && !isBursting
+        binding.aiAssistSwitch.isEnabled = state.hasPermission && !isBursting
         if (binding.aiAssistSwitch.isChecked != state.aiAssistEnabled) {
             binding.aiAssistSwitch.isChecked = state.aiAssistEnabled
         }
@@ -132,10 +152,33 @@ class MainActivity : AppCompatActivity() {
             else -> getString(R.string.detail_default)
         }
         binding.guidanceOverlayView.render(state.guidanceFrame, state.aiAssistEnabled)
+        binding.guidanceOverlayView.renderCloudGuidance(state.cloudGuidanceState)
+
+        val captureButtonColor = when (state.guidanceFrame.captureReadiness) {
+            CaptureReadiness.READY -> ContextCompat.getColor(this, R.color.readiness_ready)
+            CaptureReadiness.ALMOST_READY -> ContextCompat.getColor(this, R.color.readiness_almost)
+            CaptureReadiness.NOT_READY -> ContextCompat.getColor(this, R.color.capture_button)
+        }
+        binding.captureButton.backgroundTintList = android.content.res.ColorStateList.valueOf(captureButtonColor)
+
+        // READY 时快门放大 + 震动反馈，给出不可错过的"现在可以拍"信号
+        val currentReadiness = state.guidanceFrame.captureReadiness
+        when {
+            currentReadiness == CaptureReadiness.READY && lastReadiness != CaptureReadiness.READY -> {
+                binding.captureButton.animate().scaleX(1.18f).scaleY(1.18f).setDuration(280).start()
+                binding.captureButton.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+            }
+            currentReadiness != CaptureReadiness.READY && lastReadiness == CaptureReadiness.READY -> {
+                binding.captureButton.animate().scaleX(1f).scaleY(1f).setDuration(280).start()
+            }
+        }
+        lastReadiness = currentReadiness
 
         binding.reviewCard.isVisible = state.lastCapture != null
         binding.reviewHeaderText.text = state.lastCapture?.localSummary?.headline ?: getString(R.string.review_header_default)
-        binding.localReviewText.text = state.lastCapture?.localSummary?.details ?: getString(R.string.review_empty)
+        binding.localReviewText.text = state.photoScore?.toDisplayText()
+            ?: state.lastCapture?.localSummary?.details
+            ?: getString(R.string.review_empty)
         binding.cloudConsentStatusText.text = if (state.cloudReviewConsent) {
             getString(R.string.cloud_consent_enabled)
         } else {
@@ -175,11 +218,28 @@ class MainActivity : AppCompatActivity() {
         viewModel.setFrontCamera(manager.isFrontCamera)
     }
 
+    /** P2-4 触发连拍选片：长按快门 → 顺序拍 5 张 → PhotoScorer.selectBest 选片。 */
+    private fun triggerBurst() {
+        val manager = cameraManager ?: run {
+            toast(getString(R.string.camera_not_ready))
+            return
+        }
+        val burstCount = 5
+        viewModel.onBurstStart(burstCount)
+        manager.captureBurst(
+            count = burstCount,
+            onProgress = viewModel::onBurstProgress,
+            onComplete = viewModel::onBurstComplete,
+            onError = viewModel::onBurstError,
+        )
+    }
+
     private fun showCloudSettingsDialog() {
         val state = viewModel.uiState.value
         val dialogBinding = DialogCloudSettingsBinding.inflate(layoutInflater)
         dialogBinding.endpointEditText.setText(state.reviewEndpoint)
         dialogBinding.cloudConsentSwitch.isChecked = state.cloudReviewConsent
+        dialogBinding.voiceGuidanceSwitch.isChecked = state.voiceGuidanceEnabled
 
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.settings_title)
@@ -190,7 +250,36 @@ class MainActivity : AppCompatActivity() {
                     endpoint = dialogBinding.endpointEditText.text?.toString().orEmpty(),
                     enabled = dialogBinding.cloudConsentSwitch.isChecked,
                 )
+                viewModel.setVoiceGuidanceEnabled(dialogBinding.voiceGuidanceSwitch.isChecked)
             }
+            .show()
+    }
+
+    private fun showStyleSelectorDialog() {
+        val styles = StylePreset.values()
+        val labels = styles.map { preset ->
+            when (preset) {
+                StylePreset.FRESH -> "清新"
+                StylePreset.WORKPLACE -> "职场"
+                StylePreset.STREET -> "街拍"
+                StylePreset.EMOTIONAL -> "情绪"
+                StylePreset.FILM -> "胶片"
+                StylePreset.SWEET -> "甜美"
+                StylePreset.COOL -> "冷感"
+                StylePreset.TRAVEL -> "旅行"
+                StylePreset.ID_PHOTO -> "证件"
+            }
+        }.toTypedArray()
+        val current = styles.indexOf(viewModel.uiState.value.currentStyle)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("选择风格")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                val preset = styles[which]
+                viewModel.onStyleSelected(preset)
+                cameraManager?.setStyle(preset)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 

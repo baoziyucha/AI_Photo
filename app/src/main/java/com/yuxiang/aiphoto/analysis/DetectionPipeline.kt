@@ -5,7 +5,13 @@ import androidx.core.graphics.toRectF
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.google.mlkit.vision.face.FaceLandmark
+import com.google.mlkit.vision.pose.Pose
+import com.google.mlkit.vision.pose.PoseDetection
+import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import com.yuxiang.aiphoto.model.BrightnessState
+import com.yuxiang.aiphoto.model.FaceLightMetrics
+import com.yuxiang.aiphoto.model.LightDirection
 import com.yuxiang.aiphoto.model.NormalizedRect
 import com.yuxiang.aiphoto.model.SceneType
 import kotlin.math.abs
@@ -18,11 +24,25 @@ data class FaceDetectionResult(
     val subjectBox: NormalizedRect?,
     val faceCount: Int,
     val confidence: Float,
+    @Deprecated("Use headEulerX", ReplaceWith("headEulerX"))
+    val facePitchDeg: Float? = null,
+    val smilingProbability: Float? = null,
+    val leftEyeOpenProb: Float? = null,
+    val rightEyeOpenProb: Float? = null,
+    val headEulerX: Float? = null,
+    val headEulerY: Float? = null,
+    val headEulerZ: Float? = null,
+    val faceLightMetrics: FaceLightMetrics? = null,
 )
 
 data class SalientSubjectResult(
     val subjectBox: NormalizedRect,
     val confidence: Float,
+)
+
+data class BrightnessAnalysisResult(
+    val brightnessState: BrightnessState,
+    val lightDirection: LightDirection,
 )
 
 class FaceSubjectDetector {
@@ -31,6 +51,8 @@ class FaceSubjectDetector {
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setMinFaceSize(0.12f)
             .enableTracking()
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
             .build(),
     )
 
@@ -53,11 +75,91 @@ class FaceSubjectDetector {
             frameHeight = orientedHeight,
             mirrorX = mirrorX,
         )
+        val smiling = primary?.smilingProbability
+        val leftEyeOpen = primary?.leftEyeOpenProbability
+        val rightEyeOpen = primary?.rightEyeOpenProbability
+        // 三轴头姿：MLKit 原生 headEulerAngleX/Y/Z
+        // - headEulerX（pitch，低头/抬头）：不受水平镜像影响
+        // - headEulerY（yaw，左右转脸）：前置镜像下取负，使下游 gazeDirection 统一
+        // - headEulerZ（roll，歪头）：前置镜像下取负（左右翻转时 roll 方向反转）
+        val headPitchFromMlkit = primary?.headEulerAngleX
+        val headYaw = primary?.headEulerAngleY?.let { if (mirrorX) -it else it }
+        val headRoll = primary?.headEulerAngleZ?.let { if (mirrorX) -it else it }
+        // fallback：MLKit 未返回 headEulerAngleX 时，用 landmarks 几何估算
+        @Suppress("DEPRECATION")
+        val facePitchFallback = if (headPitchFromMlkit == null) {
+            primary?.let { estimateFacePitch(it, orientedWidth, orientedHeight, mirrorX) }
+        } else {
+            null
+        }
         return FaceDetectionResult(
             subjectBox = normalized,
             faceCount = faces.size,
             confidence = 0.92f,
+            @Suppress("DEPRECATION")
+            facePitchDeg = facePitchFallback,
+            smilingProbability = smiling,
+            leftEyeOpenProb = leftEyeOpen,
+            rightEyeOpenProb = rightEyeOpen,
+            headEulerX = headPitchFromMlkit ?: facePitchFallback,
+            headEulerY = headYaw,
+            headEulerZ = headRoll,
         )
+    }
+
+    private fun estimateFacePitch(face: com.google.mlkit.vision.face.Face, frameWidth: Int, frameHeight: Int, mirrorX: Boolean): Float? {
+        val leftEye = face.getLandmark(FaceLandmark.LEFT_EYE)?.position
+        val rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE)?.position
+        val mouthBottom = face.getLandmark(FaceLandmark.MOUTH_BOTTOM)?.position
+        val nose = face.getLandmark(FaceLandmark.NOSE_BASE)?.position
+
+        if (leftEye == null || rightEye == null) return null
+
+        val leftEyeX = normalizeCoord(leftEye.x, frameWidth, mirrorX)
+        val rightEyeX = normalizeCoord(rightEye.x, frameWidth, mirrorX)
+        val eyeMidY = (leftEye.y + rightEye.y) / 2f
+
+        val targetY = mouthBottom?.y ?: nose?.y ?: return null
+        val targetX = mouthBottom?.let { normalizeCoord(it.x, frameWidth, mirrorX) }
+            ?: nose?.let { normalizeCoord(it.x, frameWidth, mirrorX) }
+            ?: (leftEyeX + rightEyeX) / 2f
+
+        val dx = targetX - (leftEyeX + rightEyeX) / 2f
+        val dy = targetY - eyeMidY
+        if (abs(dy) < 5f) return null
+
+        val pitchRad = atan2(dx.toDouble(), dy.toDouble())
+        val pitchDeg = Math.toDegrees(pitchRad).toFloat()
+        return (pitchDeg * 10f).roundToInt() / 10f
+    }
+
+    private fun normalizeCoord(x: Float, frameWidth: Int, mirrorX: Boolean): Float {
+        return if (mirrorX) {
+            frameWidth - x
+        } else {
+            x
+        }
+    }
+
+    fun close() {
+        detector.close()
+    }
+}
+
+/**
+ * P2-5 姿态检测器：包装 ML Kit PoseDetection，STREAM_MODE 跟踪最显著人体。
+ * 仅在 FaceSubjectDetector 找到人脸后调用，避免无谓的人体检索开销。
+ * 返回 ML Kit Pose 对象（已应用旋转矫正），由 PoseEvaluator 进一步分析。
+ */
+class PoseSubjectDetector {
+    private val detector = PoseDetection.getClient(
+        PoseDetectorOptions.Builder()
+            .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
+            .build(),
+    )
+
+    suspend fun detect(inputImage: InputImage): Pose? {
+        return runCatching { detector.process(inputImage).await() }.getOrNull()
     }
 
     fun close() {
@@ -78,26 +180,11 @@ class LumaSubjectDetector {
         val cellHeight = height / rows
         if (cellWidth <= 0 || cellHeight <= 0) return null
 
-        val means = Array(rows) { FloatArray(columns) }
+        val means = computeGrid(luma, width, height)
         var globalSum = 0f
         for (row in 0 until rows) {
             for (column in 0 until columns) {
-                var sum = 0f
-                var count = 0
-                val startX = column * cellWidth
-                val endX = if (column == columns - 1) width else (column + 1) * cellWidth
-                val startY = row * cellHeight
-                val endY = if (row == rows - 1) height else (row + 1) * cellHeight
-                for (y in startY until endY step 2) {
-                    val base = y * width
-                    for (x in startX until endX step 2) {
-                        sum += luma[base + x].toUByte().toInt()
-                        count++
-                    }
-                }
-                val mean = if (count == 0) 0f else sum / count
-                means[row][column] = mean
-                globalSum += mean
+                globalSum += means[row][column]
             }
         }
         val globalMean = globalSum / (rows * columns)
@@ -158,6 +245,35 @@ class LumaSubjectDetector {
         return SalientSubjectResult(mirrored.clamped(), confidence)
     }
 
+    /** 计算 16×12 亮度网格，供 FaceLightEvaluator 复用。 */
+    fun computeGrid(luma: ByteArray, width: Int, height: Int): Array<FloatArray> {
+        val columns = 16
+        val rows = 12
+        val cellWidth = width / columns
+        val cellHeight = height / rows
+        val means = Array(rows) { FloatArray(columns) }
+        if (cellWidth <= 0 || cellHeight <= 0) return means
+        for (row in 0 until rows) {
+            for (column in 0 until columns) {
+                var sum = 0f
+                var count = 0
+                val startX = column * cellWidth
+                val endX = if (column == columns - 1) width else (column + 1) * cellWidth
+                val startY = row * cellHeight
+                val endY = if (row == rows - 1) height else (row + 1) * cellHeight
+                for (y in startY until endY step 2) {
+                    val base = y * width
+                    for (x in startX until endX step 2) {
+                        sum += luma[base + x].toUByte().toInt()
+                        count++
+                    }
+                }
+                means[row][column] = if (count == 0) 0f else sum / count
+            }
+        }
+        return means
+    }
+
     private fun neighborContrast(means: Array<FloatArray>, row: Int, column: Int): Float {
         val current = means[row][column]
         var total = 0f
@@ -177,17 +293,47 @@ class LumaSubjectDetector {
 }
 
 class BrightnessEvaluator {
-    fun evaluate(luma: ByteArray, width: Int, height: Int, subjectBox: NormalizedRect?): BrightnessState {
+    fun evaluate(luma: ByteArray, width: Int, height: Int, subjectBox: NormalizedRect?): BrightnessAnalysisResult {
         val globalMean = averageLuma(luma, width, height, 0f, 0f, 1f, 1f)
         val subjectMean = subjectBox?.let {
             averageLuma(luma, width, height, it.left, it.top, it.right, it.bottom)
         } ?: averageLuma(luma, width, height, 0.28f, 0.28f, 0.72f, 0.72f)
 
-        return when {
+        val brightnessState = when {
             globalMean >= 215f || subjectMean >= 225f -> BrightnessState.OVEREXPOSED
             globalMean >= 145f && subjectMean + 18f < globalMean -> BrightnessState.BACKLIT
             globalMean <= 72f || subjectMean <= 65f -> BrightnessState.LOW_LIGHT
             else -> BrightnessState.BALANCED
+        }
+
+        val lightDirection = estimateLightDirection(luma, width, height, subjectBox)
+        return BrightnessAnalysisResult(brightnessState, lightDirection)
+    }
+
+    private fun estimateLightDirection(
+        luma: ByteArray,
+        width: Int,
+        height: Int,
+        subjectBox: NormalizedRect?,
+    ): LightDirection {
+        val leftMean = averageLuma(luma, width, height, 0f, 0f, 0.5f, 1f)
+        val rightMean = averageLuma(luma, width, height, 0.5f, 0f, 1f, 1f)
+        val topMean = averageLuma(luma, width, height, 0f, 0f, 1f, 0.5f)
+        val bottomMean = averageLuma(luma, width, height, 0f, 0.5f, 1f, 1f)
+
+        val threshold = 15f
+
+        val horizontalDiff = leftMean - rightMean
+        val verticalDiff = topMean - bottomMean
+
+        return when {
+            abs(horizontalDiff) > threshold && horizontalDiff > abs(verticalDiff) -> {
+                if (horizontalDiff > 0) LightDirection.LEFT else LightDirection.RIGHT
+            }
+            abs(verticalDiff) > threshold && verticalDiff > abs(horizontalDiff) -> {
+                if (verticalDiff > 0) LightDirection.TOP else LightDirection.BOTTOM
+            }
+            else -> LightDirection.UNKNOWN
         }
     }
 

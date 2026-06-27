@@ -30,6 +30,8 @@
     <string name="cloud_endpoint_hint">点评服务地址，例如 https://example.com</string>
     <string name="cloud_consent_switch">允许按张上传到云端点评</string>
     <string name="cloud_consent_detail">照片默认只保存在本地。只有在你打开授权并点击“AI 点评”时，才会上传当前照片。</string>
+    <string name="voice_guidance_switch">语音指导</string>
+    <string name="voice_guidance_detail">拍摄就绪、方向变化、光线异常时语音播报提示。关闭后仅保留视觉引导。</string>
     <string name="settings_title">云端点评设置</string>
     <string name="settings_save">保存</string>
     <string name="settings_cancel">取消</string>

@@ -14,7 +14,8 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/ic_app_camera"
         android:supportsRtl="false"
-        android:theme="@style/Theme.AiPhoto">
+        android:theme="@style/Theme.AiPhoto"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

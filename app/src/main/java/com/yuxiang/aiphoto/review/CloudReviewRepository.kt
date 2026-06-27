@@ -44,6 +44,7 @@ class CloudReviewRepository(
 
                 val request = Request.Builder()
                     .url(endpoint.trimEnd('/') + "/v1/photo/review")
+                    .header("X-Model", MODEL_VL_MAX)
                     .post(body)
                     .build()
 
@@ -70,5 +71,9 @@ class CloudReviewRepository(
         @SerializedName("issues") val issues: List<String>?,
         @SerializedName("suggestions") val suggestions: List<String>?,
     )
+
+    private companion object {
+        const val MODEL_VL_MAX = "mimo-v2.5"
+    }
 }
 

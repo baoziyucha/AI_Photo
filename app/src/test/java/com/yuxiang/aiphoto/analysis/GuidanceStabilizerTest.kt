@@ -45,5 +45,34 @@ class GuidanceStabilizerTest {
         assertThat(afterReset.recommendationText).isEmpty()
         assertThat(afterReset.isStable).isFalse()
     }
+
+    @Test
+    fun keepsLastStableGuidanceDuringAdjustment() {
+        // 用户按提示移动手机时，指纹会变化导致不稳定，但指导不应消失。
+        val stabilizer = GuidanceStabilizer(stableFrames = 3)
+        val stable = GuidanceFrame(
+            sceneType = SceneType.PORTRAIT,
+            subjectBox = NormalizedRect(0.30f, 0.10f, 0.70f, 0.80f),
+            brightnessState = BrightnessState.BALANCED,
+            recommendationText = "镜头向左一点",
+        )
+
+        // 先达到稳定（3 帧相同）
+        stabilizer.stabilize(stable)
+        stabilizer.stabilize(stable)
+        val stableFrame = stabilizer.stabilize(stable)
+        assertThat(stableFrame.isStable).isTrue()
+        assertThat(stableFrame.recommendationText).isEqualTo("镜头向左一点")
+
+        // 用户开始移动，主体位置变化足够大，跨过指纹分桶边界
+        val moving = stable.copy(subjectBox = NormalizedRect(0.42f, 0.10f, 0.82f, 0.80f))
+        val duringAdjustment = stabilizer.stabilize(moving)
+
+        // 指导文案应保留，不应清空
+        assertThat(duringAdjustment.isStable).isFalse()
+        assertThat(duringAdjustment.recommendationText).isEqualTo("镜头向左一点")
+        // 主体框应跟随当前帧
+        assertThat(duringAdjustment.subjectBox).isEqualTo(moving.subjectBox)
+    }
 }
 

@@ -25,6 +25,7 @@ import com.yuxiang.aiphoto.model.CapturedPhoto
 import com.yuxiang.aiphoto.model.GuidanceFrame
 import com.yuxiang.aiphoto.model.NormalizedPoint
 import com.yuxiang.aiphoto.sensors.DeviceTiltMonitor
+import com.yuxiang.aiphoto.util.Logger
 import com.yuxiang.aiphoto.util.buildLocalPhotoSummary
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,12 +33,18 @@ import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+
+private const val BURST_TAG = "AiCameraManager.burst"
 
 class AiCameraManager(
     private val context: Context,
@@ -115,6 +122,11 @@ class AiCameraManager(
         }
     }
 
+    /** 切换风格预设，影响规则变体与话术。 */
+    fun setStyle(preset: com.yuxiang.aiphoto.model.StylePreset) {
+        guidanceEngine.styleProfile = com.yuxiang.aiphoto.analysis.StyleProfileFactory.create(preset)
+    }
+
     fun setAiAssistEnabled(enabled: Boolean) {
         aiAssistEnabled = enabled
     }
@@ -129,11 +141,12 @@ class AiCameraManager(
         bind(lifecycleOwner)
     }
 
-    fun capturePhoto(onCaptured: (CapturedPhoto) -> Unit) {
+    fun capturePhoto(onCaptured: (CapturedPhoto, GuidanceFrame) -> Unit) {
         val capture = imageCapture ?: run {
             onCameraError("相机尚未就绪，请稍后再试。")
             return
         }
+        val frameSnapshot = latestFrame
         val fileName = "AiPhoto_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.jpg"
         val outputOptions = ImageCapture.OutputFileOptions.Builder(
             context.contentResolver,
@@ -154,15 +167,16 @@ class AiCameraManager(
                         onCameraError("保存成功，但未拿到照片地址。")
                         return
                     }
-                    val summary = buildLocalPhotoSummary(latestFrame)
+                    val summary = buildLocalPhotoSummary(frameSnapshot)
                     onCaptured(
                         CapturedPhoto(
                             uri = uri,
-                            sceneType = latestFrame.sceneType,
+                            sceneType = frameSnapshot.sceneType,
                             localSummary = summary,
                             capturedAtMillis = System.currentTimeMillis(),
                             fileName = fileName,
                         ),
+                        frameSnapshot,
                     )
                 }
 
@@ -171,6 +185,81 @@ class AiCameraManager(
                 }
             },
         )
+    }
+
+    /**
+     * P2-4 连拍选片：按 [intervalMs] 间隔顺序触发 [count] 次 takePicture，
+     * CameraX 不支持并发 takePicture，故用协程顺序 await + delay。
+     * 单张失败不中断整组，最终回调 onComplete 返回所有成功照片及其拍摄瞬间的帧快照。
+     * 调用方应将帧列表喂给 PhotoScorer.selectBest 找出最佳。
+     */
+    fun captureBurst(
+        count: Int = 5,
+        intervalMs: Long = 250L,
+        onProgress: (current: Int, total: Int) -> Unit,
+        onComplete: (List<Pair<CapturedPhoto, GuidanceFrame>>) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        val capture = imageCapture ?: run {
+            onError("相机尚未就绪，请稍后再试。")
+            return
+        }
+        scope.launch {
+            val results = mutableListOf<Pair<CapturedPhoto, GuidanceFrame>>()
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            repeat(count) { index ->
+                val frameSnapshot = latestFrame
+                val fileName = "AiPhoto_burst_${timestamp}_${index + 1}.jpg"
+                val outputOptions = ImageCapture.OutputFileOptions.Builder(
+                    context.contentResolver,
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/AiPhoto")
+                    },
+                ).build()
+
+                val result = runCatching {
+                    suspendCancellableCoroutine<Pair<CapturedPhoto, GuidanceFrame>> { cont ->
+                        capture.takePicture(
+                            outputOptions,
+                            mainExecutor,
+                            object : ImageCapture.OnImageSavedCallback {
+                                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                                    val uri = outputFileResults.savedUri
+                                    if (uri == null) {
+                                        cont.resumeWithException(IllegalStateException("保存成功，但未拿到照片地址。"))
+                                        return
+                                    }
+                                    val summary = buildLocalPhotoSummary(frameSnapshot)
+                                    val photo = CapturedPhoto(
+                                        uri = uri,
+                                        sceneType = frameSnapshot.sceneType,
+                                        localSummary = summary,
+                                        capturedAtMillis = System.currentTimeMillis(),
+                                        fileName = fileName,
+                                    )
+                                    cont.resume(photo to frameSnapshot)
+                                }
+
+                                override fun onError(exception: ImageCaptureException) {
+                                    cont.resumeWithException(exception)
+                                }
+                            },
+                        )
+                    }
+                }
+                result.onSuccess { results += it }
+                    .onFailure {
+                        Logger.w(BURST_TAG, "burst[$index/${count}] failed: ${it.message}")
+                    }
+                onProgress(index + 1, count)
+                if (index < count - 1) delay(intervalMs)
+            }
+            Logger.d(BURST_TAG, "burst done: ${results.size}/$count succeeded")
+            onComplete(results)
+        }
     }
 
     fun shutdown() {
